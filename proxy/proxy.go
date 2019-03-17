@@ -170,10 +170,12 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func parsePollBody(body string) (string, map[string]string) {
 	result := strings.Split(body, ` `)
 	labels := map[string]string{}
-	splitLabels := strings.Split(result[1], `,`)
-	for _, splitLabel := range splitLabels {
-		r := strings.Split(splitLabel, `=`)
-		labels[r[0]] = r[1]
+	if len(result) > 1 {
+		splitLabels := strings.Split(result[1], `,`)
+		for _, splitLabel := range splitLabels {
+			r := strings.Split(splitLabel, `=`)
+			labels[r[0]] = r[1]
+		}
 	}
 	return result[0], labels
 }
