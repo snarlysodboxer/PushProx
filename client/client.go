@@ -36,6 +36,7 @@ var (
 	tlsKey      = kingpin.Flag("tls.key", "<key> Private key file").String()
 	metricsAddr = kingpin.Flag("metrics-addr", "Serve Prometheus metrics at this address").Default(":9369").String()
 	overrideURL = kingpin.Flag("override-url", "<URL> Force the URL to scrape").String()
+	myLabels    = kingpin.Flag("labels", "Comma separated list of labels, E.G. `app=myapp,client=myclient`").String()
 )
 
 var (
@@ -166,7 +167,7 @@ func loop(c Coordinator, t *http.Transport) error {
 		return errors.New("error parsing url poll")
 	}
 	url := base.ResolveReference(u)
-	resp, err := client.Post(url.String(), "", strings.NewReader(*myFqdn))
+	resp, err := client.Post(url.String(), "", strings.NewReader(fmt.Sprintf("%s %s", *myFqdn, *myLabels)))
 	if err != nil {
 		level.Error(c.logger).Log("msg", "Error polling:", "err", err)
 		return errors.New("error polling")
@@ -250,7 +251,7 @@ func main() {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:       tlsConfig,
 	}
 
 	for {

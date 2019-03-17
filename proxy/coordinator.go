@@ -20,6 +20,11 @@ var (
 	registrationTimeout = kingpin.Flag("registration.timeout", "After how long a registration expires.").Default("5m").Duration()
 )
 
+type client struct {
+	time.Time
+	labels map[string]string
+}
+
 type Coordinator struct {
 	mu sync.Mutex
 
@@ -28,7 +33,7 @@ type Coordinator struct {
 	// Responses from clients.
 	responses map[string]chan *http.Response
 	// Clients we know about and when they last contacted us.
-	known map[string]time.Time
+	known map[string]client
 
 	logger log.Logger
 }
@@ -37,7 +42,7 @@ func NewCoordinator(logger log.Logger) *Coordinator {
 	c := &Coordinator{
 		waiting:   map[string]chan *http.Request{},
 		responses: map[string]chan *http.Response{},
-		known:     map[string]time.Time{},
+		known:     map[string]client{},
 		logger:    logger,
 	}
 	go c.gc()
@@ -106,10 +111,10 @@ func (c *Coordinator) DoScrape(ctx context.Context, r *http.Request) (*http.Resp
 }
 
 // Client registering to accept a scrape request. Blocking.
-func (c *Coordinator) WaitForScrapeInstruction(fqdn string) (*http.Request, error) {
-	level.Info(c.logger).Log("msg", "WaitForScrapeInstruction", "fqdn", fqdn)
+func (c *Coordinator) WaitForScrapeInstruction(fqdn string, labels map[string]string) (*http.Request, error) {
+	level.Info(c.logger).Log("msg", "WaitForScrapeInstruction", "fqdn, labels", fqdn, labels)
 
-	c.addKnownClient(fqdn)
+	c.addKnownClient(fqdn, labels)
 	// TODO: What if the client times out?
 	ch := c.getRequestChannel(fqdn)
 
@@ -153,23 +158,23 @@ func (c *Coordinator) ScrapeResult(r *http.Response) error {
 	}
 }
 
-func (c *Coordinator) addKnownClient(fqdn string) {
+func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.known[fqdn] = time.Now()
+	c.known[fqdn] = client{time.Now(), labels}
 }
 
 // What clients are alive.
-func (c *Coordinator) KnownClients() []string {
+func (c *Coordinator) KnownClients() map[string]client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	limit := time.Now().Add(-*registrationTimeout)
-	known := make([]string, 0, len(c.known))
-	for k, t := range c.known {
-		if limit.Before(t) {
-			known = append(known, k)
+	known := map[string]client{}
+	for fqdn, client := range c.known {
+		if limit.Before(client.Time) {
+			known[fqdn] = client
 		}
 	}
 	return known
@@ -183,9 +188,9 @@ func (c *Coordinator) gc() {
 			defer c.mu.Unlock()
 			limit := time.Now().Add(-*registrationTimeout)
 			deleted := 0
-			for k, ts := range c.known {
-				if ts.Before(limit) {
-					delete(c.known, k)
+			for fqdn, client := range c.known {
+				if client.Time.Before(limit) {
+					delete(c.known, fqdn)
 					deleted++
 				}
 			}

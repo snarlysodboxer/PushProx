@@ -119,8 +119,9 @@ func (h *httpHandler) handlePush(w http.ResponseWriter, r *http.Request) {
 
 // handlePoll handles clients registering and asking for scrapes.
 func (h *httpHandler) handlePoll(w http.ResponseWriter, r *http.Request) {
-	fqdn, _ := ioutil.ReadAll(r.Body)
-	request, err := h.coordinator.WaitForScrapeInstruction(strings.TrimSpace(string(fqdn)))
+	body, _ := ioutil.ReadAll(r.Body)
+	fqdn, labels := parsePollBody(strings.TrimSpace(string(body)))
+	request, err := h.coordinator.WaitForScrapeInstruction(fqdn, labels)
 	if err != nil {
 		level.Info(h.logger).Log("msg", "Error WaitForScrapeInstruction:", "err", err)
 		http.Error(w, fmt.Sprintf("Error WaitForScrapeInstruction: %s", err.Error()), 408)
@@ -134,8 +135,8 @@ func (h *httpHandler) handlePoll(w http.ResponseWriter, r *http.Request) {
 func (h *httpHandler) handleListClients(w http.ResponseWriter, r *http.Request) {
 	known := h.coordinator.KnownClients()
 	targets := make([]*targetGroup, 0, len(known))
-	for _, k := range known {
-		targets = append(targets, &targetGroup{Targets: []string{k}})
+	for fqdn, client := range known {
+		targets = append(targets, &targetGroup{Targets: []string{fqdn}, Labels: client.labels})
 	}
 	json.NewEncoder(w).Encode(targets)
 	level.Info(h.logger).Log("msg", "Responded to /clients", "client_count", len(known))
@@ -164,6 +165,17 @@ func (h *httpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else { // Non-proxy requests
 		h.mux.ServeHTTP(w, r)
 	}
+}
+
+func parsePollBody(body string) (string, map[string]string) {
+	result := strings.Split(body, ` `)
+	labels := map[string]string{}
+	splitLabels := strings.Split(result[1], `,`)
+	for _, splitLabel := range splitLabels {
+		r := strings.Split(splitLabel, `=`)
+		labels[r[0]] = r[1]
+	}
+	return result[0], labels
 }
 
 func main() {
