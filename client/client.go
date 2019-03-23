@@ -71,7 +71,11 @@ type Coordinator struct {
 
 func (c *Coordinator) doScrape(request *http.Request, client *http.Client) {
 	logger := log.With(c.logger, "scrape_id", request.Header.Get("id"))
-	timeout, _ := util.GetHeaderTimeout(request.Header)
+	timeout, err := util.GetHeaderTimeout(request.Header)
+	if err != nil {
+		level.Error(logger).Log("msg", "Failed to GetHeaderTimeout:", "err", err)
+		return
+	}
 	ctx, _ := context.WithTimeout(request.Context(), timeout)
 	request = request.WithContext(ctx)
 	// We cannot handle https requests at the proxy, as we would only
