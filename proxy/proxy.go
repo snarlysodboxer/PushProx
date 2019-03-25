@@ -150,6 +150,10 @@ func (h *httpHandler) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.coordinator.DoScrape(ctx, request)
 	if err != nil {
+		if err == context.Canceled {
+			http.Error(w, fmt.Sprintf("Error scraping %q: %s", request.URL.String(), err.Error()), 500)
+			return
+		}
 		level.Error(h.logger).Log("msg", "Error scraping:", "err", err, "url", request.URL.String())
 		http.Error(w, fmt.Sprintf("Error scraping %q: %s", request.URL.String(), err.Error()), 500)
 		return
