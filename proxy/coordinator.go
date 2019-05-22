@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -114,7 +115,9 @@ func (c *Coordinator) DoScrape(ctx context.Context, r *http.Request) (*http.Resp
 func (c *Coordinator) WaitForScrapeInstruction(fqdn string, labels map[string]string) (*http.Request, error) {
 	level.Info(c.logger).Log("msg", "WaitForScrapeInstruction", "fqdn, labels", fqdn, labels)
 
-	c.addKnownClient(fqdn, labels)
+	if err := c.addKnownClient(fqdn, labels); err != nil {
+		return nil, err
+	}
 	// TODO: What if the client times out?
 	ch := c.getRequestChannel(fqdn)
 
@@ -158,11 +161,21 @@ func (c *Coordinator) ScrapeResult(r *http.Response) error {
 	}
 }
 
-func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) {
+func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) error {
+	// if target preexists with different labels, error since it means
+	//   hostnames are not unique, which is required by current pushprox architecture
+	if clienT, ok := c.known[fqdn]; ok {
+		if !reflect.DeepEqual(clienT.labels, labels) {
+			return fmt.Errorf("Same FQDN, different labels! PushProx needs FQDNs to be unique across all environments")
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.known[fqdn] = client{time.Now(), labels}
+
+	return nil
 }
 
 // What clients are alive.
