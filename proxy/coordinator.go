@@ -162,6 +162,9 @@ func (c *Coordinator) ScrapeResult(r *http.Response) error {
 }
 
 func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// if target preexists with different labels, error since it means
 	//   hostnames are not unique, which is required by current pushprox architecture
 	if clienT, ok := c.known[fqdn]; ok {
@@ -169,9 +172,6 @@ func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) erro
 			return fmt.Errorf("Same FQDN, different labels! PushProx needs FQDNs to be unique across all environments")
 		}
 	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	c.known[fqdn] = client{time.Now(), labels}
 
