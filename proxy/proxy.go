@@ -123,7 +123,7 @@ func (h *httpHandler) handlePoll(w http.ResponseWriter, r *http.Request) {
 	fqdn, labels := parsePollBody(strings.TrimSpace(string(body)))
 	request, err := h.coordinator.WaitForScrapeInstruction(fqdn, labels)
 	if err != nil {
-		level.Info(h.logger).Log("msg", "Error WaitForScrapeInstruction:", "err", err)
+		level.Error(h.logger).Log("msg", "Error WaitForScrapeInstruction:", "err", err)
 		http.Error(w, fmt.Sprintf("Error WaitForScrapeInstruction: %s", err.Error()), 408)
 		return
 	}
