@@ -169,7 +169,7 @@ func (c *Coordinator) addKnownClient(fqdn string, labels map[string]string) erro
 	//   hostnames are not unique, which is required by current pushprox architecture
 	if clienT, ok := c.known[fqdn]; ok {
 		if !reflect.DeepEqual(clienT.labels, labels) {
-			return fmt.Errorf("Same FQDN, different labels! PushProx needs FQDNs to be unique across all environments: '%v' VS '%v'", clienT, client{time.Now(), labels})
+			return fmt.Errorf("FQDN '%s' already exists with different labels! PushProx needs FQDNs to be unique across all environments: '%#v' VS '%#v'", fqdn, clienT, client{time.Now(), labels})
 		}
 	}
 
